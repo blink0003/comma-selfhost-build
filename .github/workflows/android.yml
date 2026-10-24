@@ -27,7 +27,9 @@ jobs:
             git push origin HEAD:android
           fi
       - name: Build
-        run: gradle --no-daemon :app:assembleRelease :app:lintRelease
+        run: |
+          set -o pipefail
+          gradle --no-daemon :app:assembleRelease :app:lintRelease 2>&1 | tee build.log
       - name: Verify APK
         run: |
           APK=app/build/outputs/apk/release/app-release.apk
@@ -54,14 +56,16 @@ jobs:
         if: always()
         run: |
           mkdir -p /tmp/out
-          cp -f Comma-box2.apk report.txt /tmp/out/ 2>/dev/null || true
+          cp -f Comma-box2.apk report.txt build.log /tmp/out/ 2>/dev/null || true
+          cp -f app/build/reports/lint-results-release.txt /tmp/out/ 2>/dev/null || true
+          touch /tmp/out/.keep
           cp -rf test-out/* /tmp/out/ 2>/dev/null || true
           git config user.name ci; git config user.email ci@users.noreply.github.com
           true
           git checkout --orphan out-new
           git rm -rf --cached . >/dev/null
           find . -mindepth 1 -maxdepth 1 ! -name .git -exec rm -rf {} +
-          cp -r /tmp/out/* .
+          cp -r /tmp/out/. .
           echo "${{ github.sha }} run ${{ github.run_id }}" > BUILD.txt
           git add -A
           git commit -m "outputs ${{ github.run_id }}"
