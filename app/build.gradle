@@ -1,0 +1,27 @@
+plugins { id 'com.android.application' }
+android {
+    namespace 'tech.comma.box2'
+    compileSdk 34
+    defaultConfig {
+        applicationId 'tech.comma.box2'
+        minSdk 24
+        targetSdk 34
+        versionCode 1
+        versionName '1.0'
+    }
+    signingConfigs {
+        release {
+            storeFile file('../keystore/release.jks')
+            storePassword System.getenv('KS_PASS') ?: 'commabox2'
+            keyAlias 'comma'
+            keyPassword System.getenv('KS_PASS') ?: 'commabox2'
+        }
+    }
+    buildTypes {
+        release {
+            minifyEnabled false
+            signingConfig signingConfigs.release
+        }
+    }
+    compileOptions { sourceCompatibility JavaVersion.VERSION_17; targetCompatibility JavaVersion.VERSION_17 }
+}
