@@ -1,0 +1,10 @@
+V2 Signer: certificate DN: CN=Comma Box2, O=Personal, C=CN
+V2 Signer: certificate SHA-256 digest: 1f1630542c9c6e84d2852a8fd32d711296ca7c20e87cefbfa1ed2137a9a6a1a7
+V2 Signer: certificate SHA-1 digest: 57633a26a1f5bb311a060a1351355a2ec899c262
+V2 Signer: certificate MD5 digest: b298ecea20f7b07e098bbcf5f2688c93
+package: name='tech.comma.box2' versionCode='2' versionName='1.1' platformBuildVersionName='14' platformBuildVersionCode='34' compileSdkVersion='34' compileSdkVersionCodename='14'
+minSdkVersion:'24'
+targetSdkVersion:'34'
+uses-permission: name='android.permission.INTERNET'
+uses-permission: name='android.permission.ACCESS_NETWORK_STATE'
+-rw-r--r-- 1 runner runner 27272 Oct 24 12:47 app/build/outputs/apk/release/app-release.apk

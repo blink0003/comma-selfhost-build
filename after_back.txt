@@ -1,0 +1,1 @@
+    topResumedActivity=ActivityRecord{f59b569 u0 tech.comma.box2/.MainActivity t8}
