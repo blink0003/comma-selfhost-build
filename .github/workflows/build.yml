@@ -1,0 +1,43 @@
+name: build-comma
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+permissions:
+  contents: write
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 340
+    steps:
+      - uses: actions/checkout@v4
+      - name: Free disk
+        run: |
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache /usr/local/share/boost /usr/share/swift /usr/local/.ghcup || true
+          docker system prune -af || true
+          df -h /
+      - name: Clone Comma
+        run: |
+          git clone https://github.com/AFK-surf/Comma.git comma
+          cd comma && git checkout ddcdcc5bd49620cefa623da2f38b98e72a7b613e
+          mkdir -p website && cp ../website-package.json website/package.json
+          cp ../selfhost.env .env
+      - name: Build
+        working-directory: comma
+        run: |
+          docker compose pull --ignore-buildable clickhouse postgres redis mailpit configure || true
+          COMPOSE_BAKE=false docker compose build
+          docker images
+          df -h /
+      - name: Save images
+        working-directory: comma
+        run: |
+          mkdir -p ../out
+          docker save comma-selfhost:local comma-selfhost-minio:local comma-selfhost-mc:local comma-web | gzip -1 | split -b 1900m - ../out/comma-images.tar.gz.part-
+          ls -la ../out
+      - name: Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          TAG=build-${{ github.run_number }}
+          gh release create "$TAG" out/* --title "$TAG" --notes "Comma self-host images ddcdcc5"
