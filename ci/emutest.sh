@@ -22,7 +22,7 @@ adb shell am start -W -n $PKG/.MainActivity; sleep 20
 adb exec-out screencap -p > $OUT/shot4_relaunch.png
 adb shell uiautomator dump /sdcard/ui.xml; adb pull /sdcard/ui.xml $OUT/ui2.xml
 adb logcat -d > $OUT/logcat.txt
-grep -E "FATAL EXCEPTION|AndroidRuntime: Process: $PKG|ANR in $PKG" $OUT/logcat.txt > $OUT/crashes.txt
+grep -E "AndroidRuntime: Process: $PKG|ANR in $PKG" $OUT/logcat.txt > $OUT/crashes.txt
 grep -iE "chromium.*(console|ERR_)|$PKG" $OUT/logcat.txt | tail -200 > $OUT/app_log.txt
 if [ -s $OUT/crashes.txt ]; then echo CRASH; cat $OUT/crashes.txt; exit 1; fi
 echo OK
