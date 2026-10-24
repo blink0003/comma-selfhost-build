@@ -1,0 +1,24 @@
+{
+  "name": "@comma/website",
+  "private": true,
+  "version": "0.0.0",
+  "dependencies": {
+    "@comma/analytics": "workspace:*",
+    "gsap": "^3.15.0",
+    "posthog-js": "^1.426.2",
+    "status-indicator": "github:zanwei/status-indicator-web-component#5dc7d9db6d04fee85b9376e2fb6575fdc079e5e9"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.61.0",
+    "@tailwindcss/vite": "^4.3.1",
+    "@types/node": "^25.9.3",
+    "miniflare": "4.20260616.0",
+    "parse5": "^8.0.1",
+    "shiki": "^3.23.0",
+    "stream-markdown-parser": "1.0.5",
+    "tailwindcss": "^4.3.1",
+    "typescript": "^6.0.3",
+    "vite": "^8.0.16",
+    "wrangler": "^4.101.0"
+  }
+}
