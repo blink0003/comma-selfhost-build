@@ -19,9 +19,11 @@ jobs:
       - name: Clone Comma
         run: |
           git clone https://github.com/AFK-surf/Comma.git comma
-          cd comma && git checkout ddcdcc5bd49620cefa623da2f38b98e72a7b613e
+          cd comma && git checkout 12258556
           mkdir -p website && cp ../website-package.json website/package.json
           cp ../selfhost.env .env
+          git apply ../patches/box2.patch
+          git diff --stat
       - name: Build
         working-directory: comma
         run: |
@@ -40,4 +42,4 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           TAG=build-${{ github.run_number }}
-          gh release create "$TAG" out/* --title "$TAG" --notes "Comma self-host images ddcdcc5"
+          gh release create "$TAG" out/* --title "$TAG" --notes "Comma self-host images 12258556"
