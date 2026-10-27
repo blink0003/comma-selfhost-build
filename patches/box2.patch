@@ -1,0 +1,150 @@
+diff --git a/systems/apps/salix_agent/lib/salix_agent/tools/web.ex b/systems/apps/salix_agent/lib/salix_agent/tools/web.ex
+index 881572b0..6c6d159f 100644
+--- a/systems/apps/salix_agent/lib/salix_agent/tools/web.ex
++++ b/systems/apps/salix_agent/lib/salix_agent/tools/web.ex
+@@ -67,6 +67,53 @@ defmodule SalixAgent.Tools.Web do
+   def search(query, opts \\ [])
+ 
+   def search(query, opts) when is_binary(query) do
++    tavily = System.get_env("TAVILY_API_KEY")
++
++    cond do
++      String.trim(query) == "" -> {:error, :invalid}
++      is_binary(tavily) and tavily != "" -> tavily_search(String.trim(query), tavily)
++      true -> exa_search(query, opts)
++    end
++  end
++
++  def search(_query, _opts), do: {:error, :invalid}
++
++  # box2 patch: Tavily search when TAVILY_API_KEY is set.
++  defp tavily_search(query, key) do
++    case Req.post("https://api.tavily.com/search",
++           json: %{query: query, max_results: 5, search_depth: "basic", include_answer: true},
++           headers: [{"authorization", "Bearer " <> key}],
++           receive_timeout: 20_000,
++           retry: false
++         ) do
++      {:ok, %{status: 200, body: %{"results" => results} = resp}} when is_list(results) ->
++        items =
++          for %{"url" => url} = r <- Enum.take(results, 5), is_binary(url) do
++            %{
++              "title" => String.slice(to_string(r["title"] || ""), 0, 512),
++              "url" => url,
++              "text" => String.slice(to_string(r["content"] || ""), 0, 1200)
++            }
++          end
++
++        items =
++          case resp["answer"] do
++            a when is_binary(a) and a != "" ->
++              [%{"title" => "Answer", "url" => "https://tavily.com", "text" => String.slice(a, 0, 1200)} | items]
++
++            _ ->
++              items
++          end
++
++        {:ok, items}
++
++      {:ok, %{status: 200}} -> {:error, :invalid_response}
++      {:ok, %{status: status}} -> {:error, {:http, status}}
++      {:error, reason} -> {:error, {:transport, reason}}
++    end
++  end
++
++  defp exa_search(query, opts) do
+     if String.trim(query) == "" do
+       {:error, :invalid}
+     else
+@@ -77,8 +124,6 @@ defmodule SalixAgent.Tools.Web do
+     end
+   end
+ 
+-  def search(_query, _opts), do: {:error, :invalid}
+-
+   defp search_request(query, key, opts) do
+     options =
+       [
+@@ -142,7 +187,7 @@ defmodule SalixAgent.Tools.Web do
+   def defs do
+     [
+       {"web.read_pages",
+-       "Fetch full page contents and metadata for a list of URLs using Exa AI. " <>
++       "Fetch full page contents and metadata for a list of URLs. " <>
+          "Use this tool when you need to read the actual content of web pages, " <>
+          "for example after using web.search to find relevant URLs. " <>
+          "Returns the full contents payload inline.", &__MODULE__.exa_contents/2,
+@@ -173,6 +218,46 @@ defmodule SalixAgent.Tools.Web do
+     if urls == [], do: raise("web.read_pages: urls array cannot be empty")
+     urls = Enum.take(urls, @exa_max_urls_per_request)
+ 
++    case System.get_env("TAVILY_API_KEY") do
++      key when is_binary(key) and key != "" -> tavily_extract(urls, key)
++      _ -> exa_contents_raw(urls, ctx)
++    end
++  end
++
++  # box2 patch: Tavily /extract when TAVILY_API_KEY is set.
++  defp tavily_extract(urls, key) do
++    case Req.post("https://api.tavily.com/extract",
++           json: %{urls: urls, extract_depth: "basic", format: "markdown"},
++           headers: [{"authorization", "Bearer " <> key}],
++           receive_timeout: 25_000,
++           retry: false
++         ) do
++      {:ok, %{status: 200, body: %{} = resp}} ->
++        ok =
++          for r <- List.wrap(resp["results"]) do
++            %{"url" => trim(r["url"]), "text" => String.slice(trim(r["raw_content"]), 0, @exa_text_max_characters)}
++            |> Map.reject(fn {_k, v} -> v in ["", nil] end)
++          end
++
++        failed =
++          for f <- List.wrap(resp["failed_results"]) do
++            %{"url" => trim(f["url"]), "error" => trim(f["error"])}
++          end
++
++        %{"count" => length(ok), "results" => ok}
++        |> then(fn m -> if failed == [], do: m, else: Map.put(m, "failed", failed) end)
++        |> Jason.encode!()
++
++      {:ok, %{status: status, body: resp}} ->
++        raise "web.read_pages: Tavily extract http #{status}: #{error_body(resp)}"
++
++      {:error, reason} ->
++        raise "web.read_pages: transport error #{inspect(reason)}"
++    end
++  end
++
++  defp exa_contents_raw(urls, ctx) do
++
+     api_key =
+       SystemsRuntime.get_env(:salix_agent, :exa_api_key) ||
+         raise "web.read_pages is not configured: set :salix_agent, :exa_api_key"
+diff --git a/systems/apps/salix_im/lib/salix_im/router_conversation_input.ex b/systems/apps/salix_im/lib/salix_im/router_conversation_input.ex
+index 7ed68eff..1a7a29ab 100644
+--- a/systems/apps/salix_im/lib/salix_im/router_conversation_input.ex
++++ b/systems/apps/salix_im/lib/salix_im/router_conversation_input.ex
+@@ -186,10 +186,22 @@ defmodule SalixIM.RouterConversationInput do
+       _ -> []
+     end)
+     |> Enum.join("\n")
++    |> command_alias()
+   end
+ 
++  # box2 patch: the web app sends its words as one string; accept it, and
++  # map short aliases (/new, /clear, 新对话, /status, /compact) to commands.
++  defp command_text(content) when is_binary(content), do: command_alias(content)
+   defp command_text(_), do: ""
+ 
++  defp command_alias(text) do
++    case text |> String.trim() |> String.downcase() do
++      t when t in ["/new", "/clear", "新对话", "新建对话", "/新对话"] -> "<salix-command>clear</salix-command>"
++      t when t in ["/status", "/compact", "/help"] -> "<salix-command>" <> String.trim_leading(t, "/") <> "</salix-command>"
++      _ -> text
++    end
++  end
++
+   # What the person wrote: the app sends its words as one string.
+   defp said_text(content) when is_binary(content), do: content
+   defp said_text(content), do: command_text(content)
